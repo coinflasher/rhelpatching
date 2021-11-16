@@ -1,0 +1,143 @@
+- hosts: all
+  gather_facts: yes
+  vars:
+        mountpoint: "/var/tmp" #mountpoint disk want to check
+        limit_max: "85"
+  tags:
+    - configuration
+
+  tasks:
+
+  - name: Checking Available Disk Space
+    shell: df -hBG "{{mountpoint}}" | tail -n 1 | awk {'print $4 '} | sed 's/G//g'
+    register: disk
+
+  - name: Checking Current Usage of Mount Point
+    shell: df -h "{{mountpoint}}" | tail -n 1 | awk {'print $5 '} | sed 's/%//g'
+    register: use
+
+  - name: Remove Log File
+    file:
+      path: /tmp/avail_disk.txt
+      state: absent
+
+  - name: Create Log File
+    file:
+      path: /tmp/avail_disk.txt
+      state: touch
+
+  - name: Server List
+    shell: echo "{{ inventory_hostname }}"
+    register: server
+
+  - name: Disk Space Usage
+    debug:
+      msg:
+        - "{{ disk.stdout }} GB Available"
+        - "{{ use.stdout }} % Used"
+        - "{{ server.stdout }}"
+    when: use.stdout >= limit_max
+
+  - name: Registering Disk Usage
+    lineinfile:
+     dest: /tmp/avail_disk.txt
+     line: "{{ mountpoint }} has reached {{ use.stdout }}%, remaining disk : {{ disk.stdout }}GB ON {{ server.stdout }} !"
+     state: present
+    register: msgtxt
+    with_items:
+      - "{{ disk.stdout }}"
+      - "{{ server.stdout }}"
+      - "{{ use.stdout }}"
+    when: use.stdout >= limit_max #minimum % disk usage want add to list
+
+  - fail:
+      msg: "The /var/tmp threshold has been reached, please clean up any issues and rerun"
+    when: use.stdout >= limit_max
+
+  - name: Reboot Survey
+    debug:
+     msg: "{{ ask_reboot }}"
+
+  - name: Update Kernel Survey
+    debug:
+      msg: "{{ kernel_ans }}"
+
+  - name: Populate service variable on SystemD
+    command: "systemctl list-units --type=service --state=running"
+    register: sysd_services_var
+    when: (ansible_distribution == "RedHat" and ansible_distribution_major_version > "6")
+
+  - name: Populate service variable on SystemV
+    command: "service --status-all | grep running"
+    register: sysv_services_var
+    when: (ansible_distribution == "RedHat" and ansible_distribution_major_version < "7")
+
+  - name: Log service facts ( RHEL > 6 )
+    local_action:
+      module: copy
+      content: "{{ sysd_services_var }}"
+      dest: /tmp/{{ inventory_hostname }}_ansible_facts_pre_patch
+      owner: opsmgt
+    when: (ansible_distribution == "RedHat" and ansible_distribution_major_version > "6")
+
+  - name: Log service facts ( RHEL < 6 )
+    local_action:
+      module: copy
+      content: "{{ sysv_services_var }}"
+      dest: /tmp/{{ inventory_hostname }}_ansible_facts_pre_patch
+      owner: opsmgt
+    when: (ansible_distribution == "RedHat" and ansible_distribution_major_version < "7")
+
+  - name: Parse services list
+    local_action:
+      module: script
+      cmd: sed 's/\\n/ /g' /tmp/{{ ansible_inventory }}_ansible_facts_pre_patch | egrep -io "\<[a-z]*\S*\.service\>" | sort | uniq | grep -v systemd-hostnamed.service  > /tmp/{{ ansible_inventory }}_running_services.txt
+
+  - name: Set file ownership for running services.txt
+    local_action:
+      module: file
+      path: /tmp/{{ inventory_hostname }}_running_services.txt
+      owner: awx
+
+  - name: Running Services
+    local_action:
+      module: shell
+      cmd: cat /tmp/{{ inventory_hostname }}_running_services.txt
+    register: running_services
+
+  - name: Services
+    debug:
+      var: running_services.stdout_lines
+
+  - name: Update System Packages excluding kernel
+    yum:
+      name: "*"
+      state: latest
+      exclude: kernel*
+    when: (kernel_ans is match("No") and live_patch is match("Yes"))
+
+  - name: Update System Packages including kernel
+    yum:
+      name: "*"
+      state: latest
+    when: (kernel_ans is match("Yes") and live_patch is match("Yes"))
+
+  - name: Reboot server after patching
+    reboot:
+      reboot_timeout: 300
+    when: (ask_reboot is match("Yes") and live_patch is match("Yes"))
+
+  - name: Wait for the reboot to complete if there was a change.
+    wait_for_connection:
+      connect_timeout: 20
+      sleep: 5
+      delay: 5
+      timeout: 300
+    when: (ask_reboot is match("Yes") and live_patch is match("Yes"))
+
+  - name: Ensure running services after patch
+    service:
+      name: "{{ item }}"
+      state: started
+    loop: "{{ running_services.stdout_lines }}"
+    when: live_patch is match("Yes")
