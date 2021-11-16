@@ -87,7 +87,7 @@
     when: (ansible_distribution == "RedHat" and ansible_distribution_major_version < "7")
 
   - name: Parse services list
-    script:
+    shell:
       cmd: sed 's/\\n/ /g' /tmp/{{ ansible_inventory }}_ansible_facts_pre_patch | egrep -io "\<[a-z]*\S*\.service\>" | sort | uniq | grep -v systemd-hostnamed.service  > /tmp/{{ ansible_inventory }}_running_services.txt
 
   - name: Set file ownership for running services.txt
