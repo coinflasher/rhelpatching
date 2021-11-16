@@ -22,7 +22,10 @@
       cmd: subscription-manager repos --enable=rhel-8-for-x86_64-baseos-rpms --enable=rhel-8-for-x86_64-appstream-rpms --enable=satellite-tools-6.9-for-rhel-8-x86_64-rpms
     when: ask_reg is match("Yes")
 
-  - name: UnRegister
-    shell:
-      cmd: subscription-manager clean
-    when: ask_unreg is match("Yes")
+  - name: UnRegister with activationkey 
+    redhat_subscription:
+      state: absent
+      activationkey: "RHEL 8 x86_64 Content View"
+      org_id: "Default_Organization"
+      pool: 40288ad27d26a034017d26b368fa405b
+    when: ask_reg is match("Yes")
