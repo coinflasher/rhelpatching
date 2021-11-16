@@ -88,7 +88,7 @@
 
   - name: Parse services list
     shell:
-      cmd: sed 's/\\n/ /g' /tmp/{{ inventory_hostname }}_ansible_facts_pre_patch | egrep -io "\<[a-z]*\S*\.service\>" | sort | uniq | grep -v systemd-hostnamed.service  > /tmp/{{ inventory_hostname }}_running_services.txt"
+      cmd: sed 's/\\n/ /g' /tmp/{{ inventory_hostname }}_ansible_facts_pre_patch | egrep -io "\<[a-z]*\S*\.service\>" | sort | uniq | grep -v systemd-hostnamed.service  > /tmp/{{ inventory_hostname }}_running_services.txt
 
   - name: Set file ownership for running services.txt
     file:
