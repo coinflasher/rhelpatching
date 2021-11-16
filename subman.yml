@@ -1,0 +1,28 @@
+- hosts: all
+  gather_facts: yes
+
+  tasks:
+
+  - name: Install Satellite Agent
+    yum:
+      name: http://rhelsat.odysseyinternal.local/pub/katello-ca-consumer-latest.noarch.rpm
+      state: present
+    when: ask_reg is match("Yes")
+
+  - name: Register with activationkey and consume subscriptions 
+    redhat_subscription:
+      state: present
+      activationkey: "RHEL 8 x86_64 Content View"
+      org_id: "Default_Organization"
+      pool: 40288ad27d26a034017d26b368fa405b
+    when: ask_reg is match("Yes")
+
+  - name: Enable repos
+    shell:
+      cmd: subscription-manager repos --enable=rhel-8-for-x86_64-baseos-rpms --enable=rhel-8-for-x86_64-appstream-rpms --enable=satellite-tools-6.9-for-rhel-8-x86_64-rpms
+    when: ask_reg is match("Yes")
+
+  - name: UnRegister
+    shell:
+      cmd: subscription-manager clean
+    when: ask_unreg is match("Yes")
