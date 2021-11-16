@@ -73,35 +73,30 @@
     when: (ansible_distribution == "RedHat" and ansible_distribution_major_version < "7")
 
   - name: Log service facts ( RHEL > 6 )
-    local_action:
-      module: copy
+    copy:
       content: "{{ sysd_services_var }}"
       dest: /tmp/{{ inventory_hostname }}_ansible_facts_pre_patch
       owner: root
     when: (ansible_distribution == "RedHat" and ansible_distribution_major_version > "6")
 
   - name: Log service facts ( RHEL < 6 )
-    local_action:
-      module: copy
+    copy:
       content: "{{ sysv_services_var }}"
       dest: /tmp/{{ inventory_hostname }}_ansible_facts_pre_patch
       owner: root
     when: (ansible_distribution == "RedHat" and ansible_distribution_major_version < "7")
 
   - name: Parse services list
-    local_action:
-      module: script
+    script:
       cmd: sed 's/\\n/ /g' /tmp/{{ ansible_inventory }}_ansible_facts_pre_patch | egrep -io "\<[a-z]*\S*\.service\>" | sort | uniq | grep -v systemd-hostnamed.service  > /tmp/{{ ansible_inventory }}_running_services.txt
 
   - name: Set file ownership for running services.txt
-    local_action:
-      module: file
+    file:
       path: /tmp/{{ inventory_hostname }}_running_services.txt
       owner: awx
 
   - name: Running Services
-    local_action:
-      module: shell
+    shell:
       cmd: cat /tmp/{{ inventory_hostname }}_running_services.txt
     register: running_services
 
