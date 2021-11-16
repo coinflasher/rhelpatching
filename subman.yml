@@ -7,7 +7,7 @@
     yum:
       name: http://rhelsat.odysseyinternal.local/pub/katello-ca-consumer-latest.noarch.rpm
       state: present
-    when: ask_reg is match("Yes")
+    when: sub_act is match("subscribe")
 
   - name: Register with activationkey and consume subscriptions 
     redhat_subscription:
@@ -15,12 +15,12 @@
       activationkey: "RHEL 8 x86_64 Content View"
       org_id: "Default_Organization"
       pool: 40288ad27d26a034017d26b368fa405b
-    when: ask_reg is match("Yes")
+    when: sub_act is match("subscribe")
 
   - name: Enable repos
     shell:
       cmd: subscription-manager repos --enable=rhel-8-for-x86_64-baseos-rpms --enable=rhel-8-for-x86_64-appstream-rpms --enable=satellite-tools-6.9-for-rhel-8-x86_64-rpms
-    when: ask_reg is match("Yes")
+    when: sub_act is match("subscribe")
 
   - name: UnRegister with activationkey 
     redhat_subscription:
@@ -28,4 +28,4 @@
       activationkey: "RHEL 8 x86_64 Content View"
       org_id: "Default_Organization"
       pool: 40288ad27d26a034017d26b368fa405b
-    when: ask_reg is match("Yes")
+    when: sub_act is match("unsubscribe")
